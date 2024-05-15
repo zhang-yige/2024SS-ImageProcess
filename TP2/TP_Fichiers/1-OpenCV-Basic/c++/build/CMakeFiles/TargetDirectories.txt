@@ -1,0 +1,4 @@
+/Users/mservier/Documents/pedagogie/ECPk/ImageProcessing/Zlab/2-HandOnOpenCV-4h/OpenCV-Basic/build/CMakeFiles/ImageProc-TP2.dir
+/Users/mservier/Documents/pedagogie/ECPk/ImageProcessing/Zlab/2-HandOnOpenCV-4h/OpenCV-Basic/build/CMakeFiles/ImageProc-TP2_answers.dir
+/Users/mservier/Documents/pedagogie/ECPk/ImageProcessing/Zlab/2-HandOnOpenCV-4h/OpenCV-Basic/build/CMakeFiles/edit_cache.dir
+/Users/mservier/Documents/pedagogie/ECPk/ImageProcessing/Zlab/2-HandOnOpenCV-4h/OpenCV-Basic/build/CMakeFiles/rebuild_cache.dir
