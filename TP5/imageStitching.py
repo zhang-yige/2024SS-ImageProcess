@@ -11,11 +11,11 @@ Q_KEY = 113
 def parse_command_line_arguments():# Parse command line arguments
     parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument("-k", "--kp", default="SIFT", help="key point (or corner) detector: GFTT ORB SIFT ")
-    parser.add_argument("-n", "--nbKp", default=None, type=int, help="Number of key point required (if configurable) ")
+    parser.add_argument("-n", "--nbKp", default=500, type=int, help="Number of key point required (if configurable) ")
     parser.add_argument("-d", "--descriptor", default=True, type=bool, help="compute descriptor associated with detector (if available)")
     parser.add_argument("-m", "--matching", default="NORM_L1", help="Brute Force norm: NORM_L1, NORM_L2, NORM_HAMMING, NORM_HAMMING2")
-    parser.add_argument("-i1", "--image1", default="./IMG_1_reduced.jpg", help="path to image1")
-    parser.add_argument("-i2", "--image2", default=None, help="path to image2")
+    parser.add_argument("-i1", "--image1", default="TP5/IMG_1_reduced.jpg", help="path to image1")
+    parser.add_argument("-i2", "--image2", default="TP5/IMG_2_reduced.jpg", help="path to image2")
     # other argument may need to be added
     return parser
 
@@ -47,9 +47,8 @@ def feature_detector(type, gray, nb):
                 print("not implemented yet")
                 sys.exit(1)    
             case "ORB":
-                # TODO
-                print("not implemented yet")
-                sys.exit(1)
+                orb = cv.ORB_create(nb)
+                kp = orb.detect(gray, None)
             case _:
                 sift = cv.SIFT_create(nb)
                 kp=sift.detect(gray, None)
@@ -58,12 +57,31 @@ def feature_detector(type, gray, nb):
     return kp
 
 def feature_extractor(type, img, kp):
-    
     desc = None
-    # TODO complete this function calling the compute fonction from each extractor
+    if type == "SIFT":
+        sift = cv.SIFT_create()
+        kp, desc = sift.compute(img, kp)
+    elif type == "ORB":
+        orb = cv.ORB_create()
+        kp, desc = orb.compute(img, kp)
+    elif type == "GFTT":
+        # GFTT does not have a built-in descriptor, you might want to use another method or create a custom one
+        # Here, we just return the keypoints without descriptors
+        pass
     return desc
 
-# other functions will need to be defined
+def calculate_homography(kp1, kp2, matches):
+    dst_pts = np.float32([kp1[m[0].queryIdx].pt for m in matches]).reshape(-1, 1, 2)
+    src_pts = np.float32([kp2[m[0].trainIdx].pt for m in matches]).reshape(-1, 1, 2)
+    
+    H, _ = cv.findHomography(src_pts, dst_pts, cv.RANSAC)
+    return H
+
+def warp_and_stitch(img1, img2, H):
+    result = cv.warpPerspective(img2, H, (img2.shape[1] + img1.shape[1], img2.shape[0]))
+    result[0:img1.shape[0], 0:img1.shape[1]] = img1
+
+    return result
 
 def main():
 
@@ -84,7 +102,10 @@ def main():
     print(args["kp"]+" detector")
     
     kp1 = feature_detector(args["kp"], gray1, args["nbKp"])
-    if img2 is not None: kp2 = feature_detector(args["kp"], gray2, args["nbKp"])
+    desc1 = feature_extractor(args["kp"], gray1, kp1)
+    if img2 is not None: 
+        kp2 = feature_detector(args["kp"], gray2, args["nbKp"])
+        desc2 = feature_extractor(args["kp"], gray2, kp2)
 
     # Display the keyPoint on the input images
     img_kp1=cv.drawKeypoints(gray1,kp1,img1)
@@ -98,6 +119,33 @@ def main():
     # - to calculate brute force matching between descriptor using different norms
     # - to calculate and apply homography 
     # - to stich and display resulting image
+
+    # match
+    bf = cv.BFMatcher(cv.NORM_L2, crossCheck=True)
+    # Match descriptors.
+    matches = bf.match(desc1,desc2)
+    # Sort them in the order of their distance.
+    matches = sorted(matches, key = lambda x:x.distance)
+    # Draw first 10 matches.
+    res = cv.drawMatches(img1,kp1,img2,kp2,matches[:100],None,flags=cv.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
+    display_image(res, "matches 1")
+
+    # KNN match
+    bf = cv.BFMatcher()
+    knn_matches = bf.knnMatch(desc1,desc2, k=2)
+    matches = []
+    for m,n in knn_matches:
+        if m.distance < 0.75*n.distance:
+            matches.append([m])
+    res = cv.drawMatchesKnn(img1,kp1,img2,kp2,matches,None,flags=2)
+    display_image(res, "matches 2 knn")
+
+    H = calculate_homography(kp1, kp2, matches)
+    print(H)
+    img1, gray1 = load_gray_image(args["image1"])
+    img2, gray2 = load_gray_image(args["image2"])
+    panorama = warp_and_stitch(img1, img2, H)
+    display_image(panorama, "Panorama")
 
     # waiting for user action
     key = 0
